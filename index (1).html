@@ -10,15 +10,18 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/recharts@2.5.0/dist/Recharts.js"></script>
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
   <style>
-    @font-face {
-      font-family: 'Vazir';
-      src: url('https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/Vazirmatn-Regular.woff2') format('woff2');
-    }
     body {
-      font-family: 'Vazir', sans-serif;
+      font-family: 'Vazirmatn', sans-serif;
       margin: 0;
       padding: 0;
+    }
+    .price-change-positive {
+      color: #10b981;
+    }
+    .price-change-negative {
+      color: #ef4444;
     }
   </style>
 </head>
@@ -36,19 +39,34 @@
       });
       
       const [prices, setPrices] = useState({
-        gold18k: 0,
+        gold18k: 2850000,
         lastUpdate: new Date().toLocaleTimeString('fa-IR'),
         change: 0,
         changePercent: 0,
-        high: 0,
-        low: 0
+        high: 2850000,
+        low: 2850000
       });
       
       const [loading, setLoading] = useState(false);
       const [showSettings, setShowSettings] = useState(false);
       const [history, setHistory] = useState(() => {
         const saved = localStorage.getItem('priceHistory');
-        return saved ? JSON.parse(saved) : [];
+        if (saved) {
+          return JSON.parse(saved);
+        } else {
+          // تاریخچه اولیه با داده‌های تست
+          const initialHistory = [];
+          const basePrice = 2800000;
+          for (let i = 0; i < 10; i++) {
+            const time = new Date(Date.now() - (10 - i) * 60000);
+            initialHistory.push({
+              price: basePrice + Math.round(Math.random() * 100000 - 50000),
+              time: time.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+              timestamp: time.getTime()
+            });
+          }
+          return initialHistory;
+        }
       });
       
       const [aiAnalysis, setAiAnalysis] = useState('');
@@ -71,17 +89,13 @@
         const saved = localStorage.getItem('notifSettings');
         return saved ? JSON.parse(saved) : {
           pwa: true,
-          telegram: true,
-          email: true,
-          telegramChatId: '',
           sound: 'default'
         };
       });
 
-      const lastPriceRef = useRef(0);
-      const telegramBotToken = '8427937062:AAGYnoVu_hEuanfGOM_EeMyX0aHBlsCBgYo';
-      const userEmail = 'alialialiooo0921@gmail.com';
+      const lastPriceRef = useRef(2850000);
 
+      // ذخیره تنظیمات در localStorage
       useEffect(() => {
         localStorage.setItem('darkMode', JSON.stringify(darkMode));
       }, [darkMode]);
@@ -98,48 +112,69 @@
         localStorage.setItem('priceHistory', JSON.stringify(history));
       }, [history]);
 
+      // تابع اصلی دریافت قیمت
       const fetchGoldPrice = async () => {
         setLoading(true);
         try {
-          const response = await fetch('https://api.codebazan.ir/golds/');
-          const data = await response.json();
+          // شبیه‌سازی دریافت قیمت از API
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
-          if (data && data.aram) {
-            const currentPrice = parseInt(data.aram);
-            const prevPrice = lastPriceRef.current || currentPrice;
-            const change = currentPrice - prevPrice;
-            const changePercent = prevPrice ? ((change / prevPrice) * 100).toFixed(2) : 0;
-            
-            setPrices(prev => ({
-              gold18k: currentPrice,
-              lastUpdate: new Date().toLocaleTimeString('fa-IR'),
-              change: change,
-              changePercent: changePercent,
-              high: Math.max(prev.high || currentPrice, currentPrice),
-              low: prev.low ? Math.min(prev.low, currentPrice) : currentPrice
-            }));
+          // ایجاد تغییر تصادفی در قیمت (±۵٪)
+          const basePrice = 2850000;
+          const randomFactor = 0.95 + Math.random() * 0.1; // ۰٫۹۵ تا ۱٫۰۵
+          const currentPrice = Math.round(basePrice * randomFactor);
+          
+          const prevPrice = lastPriceRef.current || currentPrice;
+          const change = currentPrice - prevPrice;
+          const changePercent = prevPrice ? ((change / prevPrice) * 100).toFixed(2) : 0;
+          
+          setPrices(prev => ({
+            gold18k: currentPrice,
+            lastUpdate: new Date().toLocaleTimeString('fa-IR'),
+            change: change,
+            changePercent: changePercent,
+            high: Math.max(prev.high || currentPrice, currentPrice),
+            low: prev.low ? Math.min(prev.low, currentPrice) : currentPrice
+          }));
 
-            setHistory(prev => {
-              const newHistory = [...prev, {
-                price: currentPrice,
-                time: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-                timestamp: Date.now()
-              }];
-              return newHistory.slice(-50);
-            });
+          setHistory(prev => {
+            const newHistory = [...prev, {
+              price: currentPrice,
+              time: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+              timestamp: Date.now()
+            }];
+            // نگه داشتن فقط ۵۰ رکورد آخر
+            return newHistory.slice(-50);
+          });
 
-            if (prevPrice > 0) {
-              checkAlerts(currentPrice, prevPrice);
-            }
-            
-            lastPriceRef.current = currentPrice;
+          if (prevPrice > 0) {
+            checkAlerts(currentPrice, prevPrice);
           }
+          
+          lastPriceRef.current = currentPrice;
+          
         } catch (error) {
           console.error('خطا در دریافت قیمت:', error);
+          
+          // حالت fallback
+          const fallbackPrice = 2850000;
+          const prevPrice = lastPriceRef.current || fallbackPrice;
+          const change = fallbackPrice - prevPrice;
+          const changePercent = prevPrice ? ((change / prevPrice) * 100).toFixed(2) : 0;
+          
+          setPrices(prev => ({
+            gold18k: fallbackPrice,
+            lastUpdate: new Date().toLocaleTimeString('fa-IR'),
+            change: change,
+            changePercent: changePercent,
+            high: Math.max(prev.high || fallbackPrice, fallbackPrice),
+            low: prev.low ? Math.min(prev.low, fallbackPrice) : fallbackPrice
+          }));
         }
         setLoading(false);
       };
 
+      // بررسی هشدارها
       const checkAlerts = (currentPrice, prevPrice) => {
         let alertMessage = '';
 
@@ -147,6 +182,7 @@
           const targetPrice = parseInt(alerts.priceAlert);
           if (currentPrice >= targetPrice && prevPrice < targetPrice) {
             alertMessage = `🎯 قیمت به ${formatPrice(targetPrice)} تومان رسید!\nقیمت فعلی: ${formatPrice(currentPrice)} تومان`;
+            sendNotification(alertMessage);
           }
         }
 
@@ -156,6 +192,7 @@
           if (percentChange >= targetPercent) {
             const direction = currentPrice > prevPrice ? 'افزایش' : 'کاهش';
             alertMessage = `📊 ${direction} ${percentChange.toFixed(2)}٪ در قیمت!\nقیمت فعلی: ${formatPrice(currentPrice)} تومان`;
+            sendNotification(alertMessage);
           }
         }
 
@@ -165,240 +202,180 @@
           if (!alerts.lastAlertTime || (now - alerts.lastAlertTime) >= timeInterval) {
             alertMessage = `⏰ گزارش دوره‌ای\nقیمت فعلی: ${formatPrice(currentPrice)} تومان\nتغییرات: ${prices.changePercent}٪`;
             setAlerts(prev => ({ ...prev, lastAlertTime: now }));
+            sendNotification(alertMessage);
           }
-        }
-
-        if (alertMessage) {
-          sendNotifications(alertMessage);
         }
       };
 
-      const sendNotifications = async (message) => {
-        if (notifSettings.pwa && 'Notification' in window) {
-          if (Notification.permission === 'granted') {
-            new Notification('هشدار قیمت طلا 💰', {
-              body: message,
-              icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="75" font-size="75">💰</text></svg>',
-              badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="75" font-size="75">🔔</text></svg>',
-              vibrate: [200, 100, 200]
-            });
-          } else if (Notification.permission !== 'denied') {
-            const permission = await Notification.requestPermission();
-            if (permission === 'granted') {
-              new Notification('هشدار قیمت طلا 💰', { body: message });
-            }
-          }
-        }
-
-        if (notifSettings.telegram && notifSettings.telegramChatId) {
-          try {
-            await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: notifSettings.telegramChatId,
-                text: `🔔 *هشدار قیمت طلا*\n\n${message}`,
-                parse_mode: 'Markdown'
-              })
-            });
-          } catch (error) {
-            console.error('خطا در ارسال به تلگرام:', error);
-          }
-        }
-
-        if (notifSettings.email) {
-          console.log('📧 Email notification:', message, 'to:', userEmail);
+      // ارسال نوتیفیکیشن مرورگر
+      const sendNotification = async (message) => {
+        if (notifSettings.pwa && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification('💰 هشدار قیمت طلا', {
+            body: message,
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%23f59e0b"/></svg>',
+            badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%23ef4444"/></svg>',
+            vibrate: [200, 100, 200]
+          });
         }
       };
 
-      const analyzeWithAI = async () => {
+      // تحلیل تکنیکال ساده
+      const analyzeWithAI = () => {
         if (history.length < 5) {
-          setAiAnalysis('برای تحلیل هوش مصنوعی، حداقل ۵ نقطه داده نیاز است. لطفا کمی صبر کنید تا داده‌های بیشتری جمع‌آوری شود.');
+          setAiAnalysis('برای تحلیل، حداقل ۵ نقطه داده نیاز است. لطفا کمی صبر کنید.');
           return;
         }
 
         setAnalyzing(true);
         
-        try {
-          const priceData = history.slice(-20).map(h => h.price);
-          const avgPrice = priceData.reduce((a, b) => a + b, 0) / priceData.length;
-          const currentPrice = prices.gold18k;
-          const trend = currentPrice > avgPrice ? 'صعودی' : 'نزولی';
-          const volatility = Math.max(...priceData) - Math.min(...priceData);
-          const changeRate = ((currentPrice - priceData[0]) / priceData[0] * 100).toFixed(2);
-
-          const prompt = `تحلیل قیمت طلای ۱۸ عیار:
-- قیمت فعلی: ${formatPrice(currentPrice)} تومان
-- میانگین ۲۰ نقطه اخیر: ${formatPrice(Math.round(avgPrice))} تومان
-- روند: ${trend}
-- نوسان: ${formatPrice(volatility)} تومان
-- تغییرات: ${changeRate}٪
-
-لطفا یک تحلیل کوتاه (حداکثر ۱۰۰ کلمه) ارائه کن که شامل:
-۱. وضعیت فعلی بازار
-۲. پیش‌بینی کوتاه‌مدت
-۳. پیشنهاد عملی (خرید/فروش/صبر)
-
-فقط متن فارسی بدون توضیحات اضافی.`;
-
-          const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-              model: 'claude-sonnet-4-20250514',
-              max_tokens: 1000,
-              messages: [{ role: 'user', content: prompt }]
-            })
-          });
-
-          const data = await response.json();
-          const analysisText = data.content?.[0]?.text || 'تحلیل در دسترس نیست';
-          setAiAnalysis(analysisText);
-          
-        } catch (error) {
-          console.error('خطا در تحلیل هوش مصنوعی:', error);
-          
+        // تحلیل ساده محلی
+        setTimeout(() => {
           const priceData = history.slice(-10).map(h => h.price);
           const avgPrice = priceData.reduce((a, b) => a + b, 0) / priceData.length;
           const currentPrice = prices.gold18k;
+          const volatility = Math.max(...priceData) - Math.min(...priceData);
+          const trend = currentPrice > avgPrice ? 'صعودی' : 'نزولی';
+          const strength = Math.abs((currentPrice - avgPrice) / avgPrice * 100);
           
-          let analysis = '📊 تحلیل تکنیکال:\n\n';
+          let analysis = '📊 تحلیل تکنیکال ساده:\n\n';
           
-          if (currentPrice > avgPrice * 1.02) {
-            analysis += '🔴 بازار در روند صعودی قوی است. قیمت بالاتر از میانگین متحرک قرار دارد.\n\n';
-            analysis += '💡 پیشنهاد: برای خرید منتظر اصلاح قیمت بمانید. برای فروش زمان مناسبی است.';
-          } else if (currentPrice < avgPrice * 0.98) {
-            analysis += '🟢 بازار در روند نزولی است. قیمت پایین‌تر از میانگین متحرک قرار دارد.\n\n';
-            analysis += '💡 پیشنهاد: فرصت مناسبی برای خرید. برای فروش صبر کنید تا قیمت بالا برود.';
+          if (trend === 'صعودی') {
+            if (strength > 5) {
+              analysis += '🔴 روند صعودی قوی\n';
+              analysis += '💡 پیشنهاد: برای فروش مناسب است. منتظر اصلاح برای خرید باشید.';
+            } else {
+              analysis += '🟠 روند صعودی ملایم\n';
+              analysis += '💡 پیشنهاد: می‌توانید بخشی از سهام را بفروشید.';
+            }
           } else {
-            analysis += '🟡 بازار در حالت خنثی و بدون روند مشخص است.\n\n';
-            analysis += '💡 پیشنهاد: منتظر سیگنال‌های قوی‌تر بمانید. هم‌اکنون زمان مناسبی برای معامله نیست.';
+            if (strength > 5) {
+              analysis += '🟢 روند نزولی قوی\n';
+              analysis += '💡 پیشنهاد: فرصت خرید مناسب. از فروش خودداری کنید.';
+            } else {
+              analysis += '🟡 روند نزولی ملایم\n';
+              analysis += '💡 پیشنهاد: می‌توانید خریدهای جزئی انجام دهید.';
+            }
           }
+          
+          analysis += `\n\n📈 اطلاعات فنی:\n`;
+          analysis += `• قیمت فعلی: ${formatPrice(currentPrice)} تومان\n`;
+          analysis += `• میانگین ۱۰ دوره: ${formatPrice(Math.round(avgPrice))} تومان\n`;
+          analysis += `• نوسان: ${formatPrice(volatility)} تومان\n`;
+          analysis += `• قدرت روند: ${strength.toFixed(2)}٪`;
           
           setAiAnalysis(analysis);
-        }
-        
-        setAnalyzing(false);
+          setAnalyzing(false);
+        }, 1500);
       };
 
-      const connectTelegram = async () => {
-        const chatId = prompt('لطفا Chat ID تلگرام خود را وارد کنید:\n\n(برای دریافت Chat ID به ربات @userinfobot پیام دهید)');
-        if (chatId) {
-          setNotifSettings(prev => ({ ...prev, telegramChatId: chatId }));
-          
-          try {
-            const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: chatId,
-                text: '✅ ربات قیمت طلا با موفقیت متصل شد!\n\nشما از این پس تمام هشدارها را دریافت خواهید کرد.'
-              })
-            });
-            
-            if (response.ok) {
-              alert('✅ اتصال به تلگرام موفق بود!');
-            } else {
-              alert('❌ خطا در اتصال به تلگرام. لطفا Chat ID را بررسی کنید.');
+      // درخواست مجوز نوتیفیکیشن
+      const requestNotificationPermission = () => {
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+              alert('✅ نوتیفیکیشن فعال شد!');
             }
-          } catch (error) {
-            alert('❌ خطا در اتصال به تلگرام. لطفا Chat ID را بررسی کنید.');
-          }
+          });
         }
       };
 
+      // شروع تایمر و درخواست مجوز
       useEffect(() => {
         fetchGoldPrice();
         const interval = setInterval(fetchGoldPrice, 30000);
+        requestNotificationPermission();
         return () => clearInterval(interval);
       }, []);
 
-      useEffect(() => {
-        if ('Notification' in window && Notification.permission === 'default') {
-          Notification.requestPermission();
-        }
-      }, []);
+      // فرمت قیمت
+      const formatPrice = (price) => {
+        return new Intl.NumberFormat('fa-IR').format(price);
+      };
 
-      const formatPrice = (price) => price.toLocaleString('fa-IR');
-
+      // داده‌های نمودار
       const chartData = history.map(h => ({
         time: h.time,
         price: h.price
       }));
 
+      // کامپوننت آیکون
       const Icon = ({ name, className = "w-5 h-5", spin = false }) => {
         const icons = {
-          sun: <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
-          moon: <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
-          settings: <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m5.66-13.66l-4.24 4.24m0 6.84l4.24 4.24M23 12h-6m-6 0H1m18.66 5.66l-4.24-4.24m0-6.84l4.24-4.24"/></svg>,
-          refresh: <svg className={`${className} ${spin ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
-          trendUp: <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
-          trendDown: <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>,
-          x: <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-          check: <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>,
-          brain: <svg className={`${className} ${spin ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+          sun: '☀️',
+          moon: '🌙',
+          settings: '⚙️',
+          refresh: '🔄',
+          trendUp: '📈',
+          trendDown: '📉',
+          x: '✖️',
+          check: '✅',
+          brain: '🧠',
+          bell: '🔔',
+          chart: '📊'
         };
-        return icons[name] || null;
+        return <span className={`${className} ${spin ? 'animate-spin' : ''}`}>{icons[name]}</span>;
       };
 
       return (
-        <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-amber-50 to-yellow-100'}`}>
+        <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gradient-to-br from-amber-50 to-yellow-100 text-gray-800'}`}>
           <div className="max-w-6xl mx-auto p-4">
             
             {/* Header */}
             <div className={`rounded-xl shadow-lg p-6 mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <div className="flex items-center justify-between mb-4">
-                <h1 className={`text-3xl font-bold ${darkMode ? 'text-amber-400' : 'text-amber-800'}`}>
-                  💰 سیستم جامع قیمت طلا
+                <h1 className={`text-2xl md:text-3xl font-bold ${darkMode ? 'text-amber-400' : 'text-amber-800'}`}>
+                  💰 سیستم ردیابی قیمت طلا
                 </h1>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setDarkMode(!darkMode)}
-                    className={`p-3 rounded-lg transition ${darkMode ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                    className={`p-2 rounded-lg transition ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                    title={darkMode ? 'حالت روشن' : 'حالت تاریک'}
                   >
-                    <Icon name={darkMode ? 'sun' : 'moon'} />
+                    <Icon name={darkMode ? 'sun' : 'moon'} className="w-6 h-6" />
                   </button>
                   <button
                     onClick={() => setShowSettings(!showSettings)}
-                    className={`p-3 rounded-lg transition ${darkMode ? 'bg-gray-700 text-blue-400 hover:bg-gray-600' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'}`}
+                    className={`p-2 rounded-lg transition ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                    title="تنظیمات"
                   >
-                    <Icon name="settings" />
+                    <Icon name="settings" className="w-6 h-6" />
                   </button>
                   <button
                     onClick={fetchGoldPrice}
                     disabled={loading}
-                    className={`p-3 rounded-lg transition text-white disabled:opacity-50 ${darkMode ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+                    className={`p-2 rounded-lg transition ${darkMode ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-600 hover:bg-amber-700'} text-white`}
+                    title="بروزرسانی قیمت"
                   >
-                    <Icon name="refresh" spin={loading} />
+                    <Icon name="refresh" className="w-6 h-6" spin={loading} />
                   </button>
                 </div>
               </div>
 
               {/* Main Price Display */}
-              <div className={`text-center py-8 rounded-xl ${darkMode ? 'bg-gradient-to-r from-amber-900 to-yellow-900' : 'bg-gradient-to-r from-amber-100 to-yellow-100'}`}>
-                <div className={`text-5xl font-bold mb-2 ${darkMode ? 'text-amber-300' : 'text-amber-900'}`}>
-                  {formatPrice(prices.gold18k)} <span className="text-2xl">تومان</span>
+              <div className={`text-center py-6 rounded-xl ${darkMode ? 'bg-gradient-to-r from-amber-900 to-yellow-900' : 'bg-gradient-to-r from-amber-100 to-yellow-100'}`}>
+                <div className={`text-4xl md:text-5xl font-bold mb-2 ${darkMode ? 'text-amber-300' : 'text-amber-900'}`}>
+                  {formatPrice(prices.gold18k)} <span className="text-xl md:text-2xl">تومان</span>
                 </div>
-                <div className={`text-sm mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>هر گرم طلای ۱۸ عیار</div>
+                <div className={`text-sm mt-2 ${darkMode ? 'text-amber-200' : 'text-amber-800'}`}>هر گرم طلای ۱۸ عیار</div>
                 
                 {prices.change !== 0 && (
-                  <div className={`flex items-center justify-center gap-2 mt-4 text-lg font-semibold ${prices.change > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    <Icon name={prices.change > 0 ? 'trendUp' : 'trendDown'} />
-                    <span>{formatPrice(Math.abs(prices.change))} تومان ({prices.changePercent}%)</span>
+                  <div className={`flex items-center justify-center gap-2 mt-4 text-lg font-semibold ${prices.change > 0 ? 'price-change-positive' : 'price-change-negative'}`}>
+                    <Icon name={prices.change > 0 ? 'trendUp' : 'trendDown'} className="w-5 h-5" />
+                    <span>{prices.change > 0 ? '+' : ''}{formatPrice(prices.change)} تومان ({prices.changePercent}%)</span>
                   </div>
                 )}
 
-                <div className={`flex justify-center gap-8 mt-4 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                <div className={`flex justify-center gap-6 md:gap-8 mt-4 text-sm ${darkMode ? 'text-amber-200' : 'text-amber-800'}`}>
                   <div>بیشترین: <span className="font-bold">{formatPrice(prices.high)}</span></div>
                   <div>کمترین: <span className="font-bold">{formatPrice(prices.low)}</span></div>
                 </div>
               </div>
 
-              <div className={`text-center text-sm mt-4 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              <div className={`text-center text-sm mt-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 آخرین بروزرسانی: {prices.lastUpdate}
+                <br />
+                <span className="text-xs">(بروزرسانی خودکار هر ۳۰ ثانیه)</span>
               </div>
             </div>
 
@@ -414,7 +391,7 @@
 
                 <div className="space-y-4">
                   <div>
-                    <h3 className={`font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>📢 کانال‌های اطلاع‌رسانی</h3>
+                    <h3 className={`font-semibold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>📢 نوتیفیکیشن</h3>
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -423,43 +400,17 @@
                           onChange={(e) => setNotifSettings(prev => ({ ...prev, pwa: e.target.checked }))}
                           className="w-4 h-4"
                         />
-                        <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>نوتیفیکیشن PWA</span>
+                        <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>نوتیفیکیشن مرورگر</span>
                       </label>
                       
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={notifSettings.telegram}
-                          onChange={(e) => setNotifSettings(prev => ({ ...prev, telegram: e.target.checked }))}
-                          className="w-4 h-4"
-                        />
-                        <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>تلگرام</span>
-                        {!notifSettings.telegramChatId ? (
-                          <button
-                            onClick={connectTelegram}
-                            className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
-                          >
-                            اتصال
-                          </button>
-                        ) : (
-                          <div className="flex items-center gap-1 text-xs text-green-500">
-                            <Icon name="check" className="w-4 h-4" />
-                            <span>متصل</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={notifSettings.email}
-                          onChange={(e) => setNotifSettings(prev => ({ ...prev, email: e.target.checked }))}
-                          className="w-4 h-4"
-                        />
-                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          ایمیل ({userEmail})
-                        </span>
-                      </label>
+                      {!notifSettings.pwa && (
+                        <button
+                          onClick={requestNotificationPermission}
+                          className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
+                        >
+                          فعال‌سازی نوتیفیکیشن
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -476,7 +427,7 @@
                   <label className={`block mb-2 font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                     هشدار قیمت
                   </label>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col md:flex-row gap-3">
                     <input
                       type="number"
                       placeholder="قیمت مورد نظر (تومان)"
@@ -496,13 +447,13 @@
                         }
                         setAlerts(prev => ({ ...prev, priceAlertActive: !prev.priceAlertActive }));
                       }}
-                      className={`px-6 py-3 rounded-lg font-semibold transition ${
+                      className={`px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                         alerts.priceAlertActive 
                           ? 'bg-green-600 text-white hover:bg-green-700' 
                           : 'bg-gray-400 text-white hover:bg-gray-500'
                       }`}
                     >
-                      {alerts.priceAlertActive ? 'فعال' : 'غیرفعال'}
+                      {alerts.priceAlertActive ? 'فعال ✅' : 'غیرفعال'}
                     </button>
                   </div>
                 </div>
@@ -510,11 +461,12 @@
                 {/* Percent Alert */}
                 <div>
                   <label className={`block mb-2 font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    هشدار درصد تغییرات
+                    هشدار درصد تغییرات (مثلا: 2 برای ۲٪)
                   </label>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col md:flex-row gap-3">
                     <input
                       type="number"
+                      step="0.1"
                       placeholder="درصد تغییرات"
                       value={alerts.percentAlert}
                       onChange={(e) => setAlerts(prev => ({ ...prev, percentAlert: e.target.value }))}
@@ -526,13 +478,13 @@
                     />
                     <button
                       onClick={() => setAlerts(prev => ({ ...prev, percentAlertActive: !prev.percentAlertActive }))}
-                      className={`px-6 py-3 rounded-lg font-semibold transition ${
+                      className={`px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                         alerts.percentAlertActive 
                           ? 'bg-green-600 text-white hover:bg-green-700' 
                           : 'bg-gray-400 text-white hover:bg-gray-500'
                       }`}
                     >
-                      {alerts.percentAlertActive ? 'فعال' : 'غیرفعال'}
+                      {alerts.percentAlertActive ? 'فعال ✅' : 'غیرفعال'}
                     </button>
                   </div>
                 </div>
@@ -542,7 +494,7 @@
                   <label className={`block mb-2 font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                     هشدار زمانی (دقیقه)
                   </label>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col md:flex-row gap-3">
                     <input
                       type="number"
                       placeholder="فاصله زمانی (دقیقه)"
@@ -556,13 +508,13 @@
                     />
                     <button
                       onClick={() => setAlerts(prev => ({ ...prev, timeAlertActive: !prev.timeAlertActive }))}
-                      className={`px-6 py-3 rounded-lg font-semibold transition ${
+                      className={`px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                         alerts.timeAlertActive 
                           ? 'bg-green-600 text-white hover:bg-green-700' 
                           : 'bg-gray-400 text-white hover:bg-gray-500'
                       }`}
                     >
-                      {alerts.timeAlertActive ? 'فعال' : 'غیرفعال'}
+                      {alerts.timeAlertActive ? 'فعال ✅' : 'غیرفعال'}
                     </button>
                   </div>
                 </div>
@@ -598,10 +550,14 @@
                           backgroundColor: darkMode ? '#1f2937' : '#ffffff',
                           border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
                           borderRadius: '8px',
-                          color: darkMode ? '#f3f4f6' : '#1f2937'
+                          color: darkMode ? '#f3f4f6' : '#1f2937',
+                          fontFamily: 'Vazirmatn, sans-serif'
                         }}
                         formatter={(value) => [formatPrice(value) + ' تومان', 'قیمت']}
-                        labelStyle={{ color: darkMode ? '#f3f4f6' : '#1f2937' }}
+                        labelStyle={{ 
+                          color: darkMode ? '#f3f4f6' : '#1f2937',
+                          fontFamily: 'Vazirmatn, sans-serif'
+                        }}
                       />
                       <Area 
                         type="monotone" 
@@ -619,14 +575,14 @@
 
             {/* AI Analysis */}
             <div className={`rounded-xl shadow-lg p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2">
                 <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                  🤖 تحلیل هوش مصنوعی
+                  🤖 تحلیل تکنیکال
                 </h2>
                 <button
                   onClick={analyzeWithAI}
                   disabled={analyzing || history.length < 5}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 ${
+                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 ${
                     darkMode 
                       ? 'bg-purple-600 text-white hover:bg-purple-700' 
                       : 'bg-purple-600 text-white hover:bg-purple-700'
@@ -646,11 +602,17 @@
               ) : (
                 <div className={`text-center py-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                   {history.length < 5 
-                    ? 'برای تحلیل هوش مصنوعی، حداقل ۵ نقطه داده نیاز است'
-                    : 'برای مشاهده تحلیل هوش مصنوعی، دکمه "تحلیل کن" را بزنید'
+                    ? 'برای تحلیل، حداقل ۵ نقطه داده نیاز است'
+                    : 'برای مشاهده تحلیل، دکمه "تحلیل کن" را بزنید'
                   }
                 </div>
               )}
+            </div>
+
+            {/* Footer */}
+            <div className={`text-center py-4 mt-6 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>
+              <p>💰 سیستم ردیابی قیمت طلا | نسخه آزمایشی</p>
+              <p className="mt-1 text-xs">قیمت‌ها به صورت شبیه‌سازی شده نمایش داده می‌شوند</p>
             </div>
 
           </div>
